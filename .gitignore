@@ -1,0 +1,7 @@
+/target
+/dist
+# anonymized outputs and mapping tables (mapping files contain the originals!)
+*_anon.pcap
+*_anon.pcapng
+*_anon.cap
+mapping*.csv

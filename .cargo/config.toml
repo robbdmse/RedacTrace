@@ -1,0 +1,5 @@
+# Link the C runtime statically when building with the MSVC toolchain, so the
+# .exe runs on any Windows PC without the Visual C++ redistributable.
+# (The GNU toolchain build already only depends on Windows system DLLs.)
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]

@@ -1,0 +1,3 @@
+# test fixtures are binary captures
+*.pcap   binary
+*.pcapng binary

@@ -1,0 +1,116 @@
+# =============================================================================
+#  RedacTrace settings
+#
+#  The program looks for this file (in this order):
+#    1. the path given with  --config <file>
+#    2. anonymizer.toml in the current working directory
+#    3. anonymizer.toml next to the executable
+#  If none is found the built-in defaults (identical to this file) are used.
+#  Generate a fresh copy with:  redactrace --init-config
+# =============================================================================
+
+[general]
+# Secret used to derive pseudonyms (keyed HMAC-SHA256).
+#  - Leave empty: a random secret is generated per run, so pseudonyms cannot be
+#    reproduced or brute-forced afterwards (recommended for sharing traces).
+#  - Set a value: the same original always maps to the same pseudonym, also
+#    across separate runs (useful when anonymizing traces in several batches).
+secret = ""
+
+# Write a CSV table "category,original,pseudonym" after the run.
+# WARNING: this file contains the ORIGINAL identifiers. Keep it private.
+# Leave empty to disable. Can be overridden with --mapping <file>.
+mapping_file = ""
+
+# Packets that are not S1AP / NGAP signalling (e.g. GTP-U, Diameter, HTTP/2,
+# ARP, DNS ...):
+#   "keep" = keep them; only their MAC/IP headers are anonymized
+#   "drop" = remove them from the output
+other_traffic = "keep"
+
+# S1AP / NGAP messages that could not be (fully) parsed, e.g. a malformed
+# message or an SCTP fragment whose start is missing from the capture:
+#   "keep" = keep the packet as it is (some fields may stay un-anonymized)
+#   "drop" = remove the packet from the output (strictest)
+on_error = "keep"
+
+# Recompute IPv4 header, TCP/UDP/ICMP and SCTP (CRC32c) checksums after
+# modifying packets, so Wireshark shows no checksum errors.
+fix_checksums = true
+
+# pcapng only: remove user comments from packets/sections (they are free text
+# and often contain IMSIs or phone numbers). Name resolution blocks and
+# interface names/addresses are always removed.
+strip_pcapng_comments = true
+
+[protocols]
+# How S1AP and NGAP are recognised inside SCTP DATA chunks: by payload
+# protocol identifier (PPID) first, then by SCTP port.
+s1ap_sctp_ports = [36412]
+ngap_sctp_ports = [38412]
+s1ap_ppids = [18]
+ngap_ppids = [60]
+
+[anonymize]
+# --- Transport layer -------------------------------------------------------
+mac_addresses = true          # Ethernet / Linux-cooked / ARP / IPv6-ND MAC addresses
+ip_addresses = true           # IPv4/IPv6 headers, ARP, ICMP inner headers, SCTP INIT/ASCONF/HEARTBEAT addresses
+ip_in_signalling = true       # IPs inside S1AP/NGAP: GTP-U tunnel endpoints, AMF TNL addresses, trace collection entity, N3IWF UE IP
+ue_ip_addresses = true        # UE IP addresses assigned in NAS (EPS PDN address, 5GS PDU address)
+
+# --- Subscriber / device identities -----------------------------------------
+imsi = true                   # IMSI in NAS, S1AP paging, and the MSIN of a 5G SUCI (null protection scheme)
+tmsi = true                   # M-TMSI, 5G-TMSI, (P-)TMSI in S-TMSI, 5G-S-TMSI, GUTI, 5G-GUTI
+imei = true                   # IMEI / IMEISV (NAS Identity Response, Security Mode Complete, ...)
+
+# --- Network node identities ------------------------------------------------
+amf_name = true               # AMF Name, backup AMF name, old AMF (NGAP)
+mme_name = true               # MME Name (S1AP)
+ran_node_name = true          # gNB / ng-eNB name (NGAP RAN Node Name) and eNB name (S1AP)
+gnb_id = true                 # gNB-ID in Global gNB ID / Target ID (NGAP)
+enb_id = true                 # eNB-ID (S1AP) and ng-eNB-ID (NGAP)
+cell_identity = true          # NR Cell Identity and E-UTRAN Cell Identity (they embed the gNB/eNB ID)
+amf_identifiers = false       # AMF Region ID, AMF Set ID, AMF Pointer (GUAMI, 5G-S-TMSI, 5G-GUTI)
+mme_identifiers = false       # MME Group ID, MME Code (GUMMEI, S-TMSI, GUTI)
+
+[mac]
+# Keep the vendor part (first 3 bytes, the OUI) of MAC addresses.
+keep_oui = false
+
+[ip]
+# "prefix-preserving": addresses sharing a prefix keep sharing a prefix of the
+#                      same length after anonymization (subnets stay visible).
+# "random"           : every address gets an unrelated random pseudonym.
+mode = "prefix-preserving"
+# Keep special addresses unchanged: 0.0.0.0, 255.255.255.255, loopback,
+# multicast (and the fe80::/64 prefix of IPv6 link-local addresses).
+keep_special = true
+
+[imsi]
+# MCC + MNC are always kept. The MNC length (2 or 3 digits) is learned from the
+# trace (PLMN IDs in TAI, cell IDs, SUCI ...). This value is used for IMSIs whose
+# PLMN does not appear anywhere else in the trace.
+default_mnc_length = 2
+
+[imei]
+# Keep the 8-digit Type Allocation Code (identifies the device model); only the
+# serial number is replaced (and the check digit recomputed).
+keep_tac = true
+
+[ran]
+# Length in bits (22..32) of the gNB-ID inside the 36-bit NR Cell Identity.
+# 0 = learn it from NGSetupRequest / RANConfigurationUpdate in the trace. When it
+# is unknown, the whole NR Cell Identity is replaced by an unrelated value.
+gnb_id_length = 0
+# Length in bits of the eNB-ID inside the 28-bit E-UTRAN Cell Identity when it
+# cannot be learned from the trace (20 = macro eNB, 28 = home eNB).
+enb_id_length = 20
+
+[nas]
+# Messages sent with a "ciphered" security header are only readable when the
+# null algorithm (EEA0 / NEA0) is used, which is common in lab traces.
+#   detect_null_ciphering = true : look inside ciphered NAS messages and
+#                                  anonymize them when they are plain text
+#   assume_null_ciphering = true : always treat ciphered NAS as plain text
+detect_null_ciphering = true
+assume_null_ciphering = false
